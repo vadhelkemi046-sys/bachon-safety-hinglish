@@ -1,0 +1,2 @@
+{"id": "g001", "text": "bhai tu aaja, kisi ko mat batana", "language": "hinglish", "label": "grooming", "risk": "high", "reason": "akele bulana aur secret rakhne ko kehna", "source": "manual"}
+{"id": "s001", "text": "kal maths ka homework kya tha?", "language": "hinglish", "label": "safe", "risk": "low", "reason": "normal padhai ki baat", "source": "manual"}
