@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import re
 import time
 
@@ -10,8 +11,7 @@ from google.genai import types
 load_dotenv()
 client = genai.Client()  # GEMINI_API_KEY .env se padhta hai
 
-MODEL = os.getenv("MODEL", "gemini-2.5-flash-lite")
-LABELS = ["scam", "grooming", "bullying", "inappropriate", "safe"]
+MODEL = os.getenv("MODEL", "gemini-3.1-flash-lite")LABELS = ["scam", "grooming", "bullying", "inappropriate", "safe"]
 # Few-shot examples train set se (test set se kabhi nahi)
 FEWSHOT_IDS = ["g001", "g002", "c001", "c003", "b001", "b002",
                "i001", "i004", "s001", "s003", "s004", "s025"]
@@ -23,7 +23,9 @@ def load(path):
 
 
 train = load("data/dataset.jsonl")
-test = load("data/test.jsonl")
+TEST_PATH = sys.argv[1] if len(sys.argv) > 1 else "data/test.jsonl"
+test = load(TEST_PATH)
+OUT_NAME = os.path.splitext(os.path.basename(TEST_PATH))[0]
 examples = [r for r in train if r["id"] in FEWSHOT_IDS]
 
 example_text = "\n".join(
@@ -97,7 +99,7 @@ for i, row in enumerate(test, 1):
     time.sleep(4)  # free tier ke rate limit se bachne ke liye
 
 os.makedirs("results", exist_ok=True)
-with open("results/baseline_predictions.jsonl", "w", encoding="utf-8") as f:
+with open(f"results/{OUT_NAME}_predictions.jsonl", "w", encoding="utf-8") as f:  
     for p in preds:
         f.write(json.dumps(p, ensure_ascii=False) + "\n")
 
