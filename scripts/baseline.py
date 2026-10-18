@@ -11,7 +11,8 @@ from google.genai import types
 load_dotenv()
 client = genai.Client()  # GEMINI_API_KEY .env se padhta hai
 
-MODEL = os.getenv("MODEL", "gemini-3.1-flash-lite")LABELS = ["scam", "grooming", "bullying", "inappropriate", "safe"]
+MODEL = os.getenv("MODEL", "gemini-3.1-flash-lite")
+LABELS = ["scam", "grooming", "bullying", "inappropriate", "safe"]
 # Few-shot examples train set se (test set se kabhi nahi)
 FEWSHOT_IDS = ["g001", "g002", "c001", "c003", "b001", "b002",
                "i001", "i004", "s001", "s003", "s004", "s025"]

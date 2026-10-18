@@ -136,3 +136,7 @@ if st.button("Check karein", type="primary"):
                 st.markdown(f"- {s}")
             st.info("Ye AI ka andaza hai, galat bhi ho sakta hai. "
                     "Kripya khud confirm karein.")
+
+
+            
+         
