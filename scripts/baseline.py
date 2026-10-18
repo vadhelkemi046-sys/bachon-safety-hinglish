@@ -28,6 +28,7 @@ TEST_PATH = sys.argv[1] if len(sys.argv) > 1 else "data/test.jsonl"
 test = load(TEST_PATH)
 OUT_NAME = os.path.splitext(os.path.basename(TEST_PATH))[0]
 examples = [r for r in train if r["id"] in FEWSHOT_IDS]
+assert len(examples) == len(FEWSHOT_IDS), f"missing ids: {set(FEWSHOT_IDS) - {r['id'] for r in examples}}"
 
 example_text = "\n".join(
     json.dumps({"message": r["text"], "label": r["label"], "risk": r["risk"],
@@ -107,6 +108,8 @@ with open(f"results/{OUT_NAME}_predictions.jsonl", "w", encoding="utf-8") as f:
 # ---- Metrics ----
 correct = sum(p["label"] == p["pred_label"] for p in preds)
 print(f"\nModel: {MODEL}")
+invalid = sum(p["pred_label"] == "invalid" for p in preds)
+print(f"Invalid/failed predictions: {invalid}")
 print(f"Accuracy: {correct}/{len(preds)} = {correct / len(preds):.2%}")
 
 print("\nPer-label:")
