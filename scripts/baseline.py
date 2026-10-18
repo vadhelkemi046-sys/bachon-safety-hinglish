@@ -1,42 +1,61 @@
 import json
 import os
-import sys
 import re
-import time
 
+import streamlit as st
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
 load_dotenv()
-client = genai.Client()  # GEMINI_API_KEY .env se padhta hai
 
 MODEL = os.getenv("MODEL", "gemini-3.1-flash-lite")
 LABELS = ["scam", "grooming", "bullying", "inappropriate", "safe"]
-# Few-shot examples train set se (test set se kabhi nahi)
 FEWSHOT_IDS = ["g001", "g002", "c001", "c003", "b001", "b002",
                "i001", "i004", "s001", "s003", "s004", "s025"]
 
+INFO = {
+    "scam": ("🚩", "Scam jaisa lagta hai", [
+        "Link na kholein aur OTP, password ya card details kisi ko na dein.",
+        "Bachche ko samjhayein ki free inaam ya paisa maangne wale messages dhokha hote hain.",
+        "Paisa chala gaya ho to cybercrime.gov.in par ya 1930 par report karein.",
+    ]),
+    "grooming": ("🚨", "Grooming jaisa lagta hai (gambhir)", [
+        "Bachche ko daantein nahi. Shaanti se poochhein ki ye kaun hai aur kab se baat ho rahi hai.",
+        "Chat ke screenshot save kar lein, phir us account ko block aur report karein.",
+        "Madad ke liye Childline 1098 ya cybercrime.gov.in par sampark karein.",
+    ]),
+    "bullying": ("⚠️", "Bullying jaisa lagta hai", [
+        "Bachche se pyaar se baat karein, use batayein ki isme uski galti nahi hai.",
+        "Screenshot save karein aur zaroorat ho to school ko batayein.",
+        "Bhejne wale ko block karein aur platform par report karein.",
+    ]),
+    "inappropriate": ("⚠️", "Bachche ke liye unfit content", [
+        "Bachche se baat karein ki wo ye kahan se aaya aur kaisa laga.",
+        "Parental controls aur group settings dekhein.",
+    ]),
+    "safe": ("✅", "Safe lagta hai", [
+        "Is message mein khatre ka koi saaf nishaan nahi dikha.",
+    ]),
+}
 
-def load(path):
-    with open(path, encoding="utf-8") as f:
-        return [json.loads(line) for line in f if line.strip()]
+
+@st.cache_resource
+def get_client():
+    return genai.Client()
 
 
-train = load("data/dataset.jsonl")
-TEST_PATH = sys.argv[1] if len(sys.argv) > 1 else "data/test.jsonl"
-test = load(TEST_PATH)
-OUT_NAME = os.path.splitext(os.path.basename(TEST_PATH))[0]
-examples = [r for r in train if r["id"] in FEWSHOT_IDS]
-assert len(examples) == len(FEWSHOT_IDS), f"missing ids: {set(FEWSHOT_IDS) - {r['id'] for r in examples}}"
-
-example_text = "\n".join(
-    json.dumps({"message": r["text"], "label": r["label"], "risk": r["risk"],
-                "reason": r["reason"]}, ensure_ascii=False)
-    for r in examples
-)
-
-SYSTEM = f"""Tum bachon ki online safety ke liye ek classifier ho. Ek parent ek message
+@st.cache_data
+def build_system():
+    with open("data/dataset.jsonl", encoding="utf-8") as f:
+        rows = [json.loads(line) for line in f if line.strip()]
+    examples = [r for r in rows if r["id"] in FEWSHOT_IDS]
+    example_text = "\n".join(
+        json.dumps({"message": r["text"], "label": r["label"], "risk": r["risk"],
+                    "reason": r["reason"]}, ensure_ascii=False)
+        for r in examples
+    )
+    return f"""Tum bachon ki online safety ke liye ek classifier ho. Ek parent ek message
 paste karta hai jo bachche ko aaya hai. Tumhe usse in 5 labels mein se ek do:
 
 - scam: paisa, OTP, password, fake prize, fake link, game-currency ki thagi
@@ -59,78 +78,62 @@ Examples:
 {example_text}
 """
 
-CONFIG = types.GenerateContentConfig(
-    system_instruction=SYSTEM,
-    temperature=0,
-    max_output_tokens=300,
-    response_mime_type="application/json",
-)
 
-
-def predict(text):
-    raw = ""
-    for attempt in range(4):
-        try:
-            resp = client.models.generate_content(
-                model=MODEL,
-                contents=f"<message>{text}</message>",
-                config=CONFIG,
-            )
-            raw = resp.text or ""
-            break
-        except Exception as e:
-            print(f"  retry {attempt + 1}: {str(e)[:80]}")
-            time.sleep(10 * (attempt + 1))
-    match = re.search(r"\{.*\}", raw, re.DOTALL)
+def classify(text):
+    config = types.GenerateContentConfig(
+        system_instruction=build_system(),
+        temperature=0,
+        max_output_tokens=300,
+        response_mime_type="application/json",
+    )
     try:
+        resp = get_client().models.generate_content(
+            model=MODEL,
+            contents=f"<message>{text}</message>",
+            config=config,
+        )
+        match = re.search(r"\{.*\}", resp.text or "", re.DOTALL)
         out = json.loads(match.group(0))
         if out.get("label") not in LABELS:
-            out["label"] = "invalid"
+            return None
         return out
-    except Exception:
-        return {"label": "invalid", "risk": "", "reason": raw[:100]}
+    except Exception as e:
+        print("ERROR:", repr(e))
+        return None
 
 
-preds = []
-for i, row in enumerate(test, 1):
-    out = predict(row["text"])
-    preds.append({**row, "pred_label": out["label"],
-                  "pred_risk": out.get("risk", ""),
-                  "pred_reason": out.get("reason", "")})
-    print(f"{i}/{len(test)} {row['id']}: true={row['label']} pred={out['label']}")
-    time.sleep(4)  # free tier ke rate limit se bachne ke liye
+st.set_page_config(page_title="Bachon ki Online Safety", page_icon="🛡️")
+st.title("🛡️ Bachon ki Online Safety")
+st.caption("Suspicious message paste karein, AI batayega ki wo scam, grooming, "
+           "bullying ya gandi baat jaisa lagta hai ya nahi.")
 
-os.makedirs("results", exist_ok=True)
-with open(f"results/{OUT_NAME}_predictions.jsonl", "w", encoding="utf-8") as f:  
-    for p in preds:
-        f.write(json.dumps(p, ensure_ascii=False) + "\n")
+with st.sidebar:
+    st.subheader("Dhyan dein")
+    st.write("Ye abhi ek demo hai. Yahan kisi bachche ki asli chat na daalein, "
+             "sirf sample messages try karein.")
+    st.write("Ye app message ko save nahi karta, par jaanch ke liye use "
+             "Google Gemini AI service ko bheja jaata hai.")
 
-# ---- Metrics ----
-correct = sum(p["label"] == p["pred_label"] for p in preds)
-print(f"\nModel: {MODEL}")
-invalid = sum(p["pred_label"] == "invalid" for p in preds)
-print(f"Invalid/failed predictions: {invalid}")
-print(f"Accuracy: {correct}/{len(preds)} = {correct / len(preds):.2%}")
+text = st.text_area("Message ya chat ka hissa yahan paste karein",
+                    height=150, max_chars=1500)
 
-print("\nPer-label:")
-print(f"{'label':<14}{'precision':>10}{'recall':>8}{'f1':>6}")
-for lab in LABELS:
-    tp = sum(p["label"] == lab and p["pred_label"] == lab for p in preds)
-    fp = sum(p["label"] != lab and p["pred_label"] == lab for p in preds)
-    fn = sum(p["label"] == lab and p["pred_label"] != lab for p in preds)
-    prec = tp / (tp + fp) if tp + fp else 0
-    rec = tp / (tp + fn) if tp + fn else 0
-    f1 = 2 * prec * rec / (prec + rec) if prec + rec else 0
-    print(f"{lab:<14}{prec:>10.2f}{rec:>8.2f}{f1:>6.2f}")
-
-safe = [p for p in preds if p["label"] == "safe"]
-danger = [p for p in preds if p["label"] != "safe"]
-fpr = sum(p["pred_label"] != "safe" for p in safe) / len(safe)
-drec = sum(p["pred_label"] != "safe" for p in danger) / len(danger)
-print(f"\nFalse-positive rate (safe ko khatra bola): {fpr:.2%}")
-print(f"Danger recall (khatre ko pakda): {drec:.2%}")
-
-print("\nGalat predictions:")
-for p in preds:
-    if p["label"] != p["pred_label"]:
-        print(f"{p['id']}: true={p['label']} pred={p['pred_label']} | {p['text'][:70]}")
+if st.button("Check karein", type="primary"):
+    if not text.strip():
+        st.warning("Pehle koi message paste karein.")
+    else:
+        with st.spinner("Check ho raha hai..."):
+            out = classify(text.strip())
+        if out is None:
+            st.error("Abhi jawab nahi mil paya. Thodi der baad dobara try karein.")
+        else:
+            label = out["label"]
+            emoji, title, steps = INFO[label]
+            box = st.success if label == "safe" else (
+                st.error if out.get("risk") == "high" else st.warning)
+            box(f"{emoji} {title}  |  Risk: {out.get('risk', '-')}")
+            st.write(f"**Kyun:** {out.get('reason', '')}")
+            st.markdown("**Aap kya kar sakte hain:**")
+            for s in steps:
+                st.markdown(f"- {s}")
+            st.info("Ye AI ka andaza hai, galat bhi ho sakta hai. "
+                    "Kripya khud confirm karein.")
