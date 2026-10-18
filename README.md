@@ -19,3 +19,10 @@ Model: gemini-3.1-flash-lite
 - False-positive rate: 0.00%, Danger recall: 100% (test_perturbed par).
 - Ek galti: h030_p2 (grooming ko scam bola), typo wale SMS-style text par.
 - Dhyan rakhein: test_perturbed, test_hard se bana hai, isliye ye sirf typing ki robustness check karta hai. Naye messages par generalization ka test abhi baaki hai.
+## Demo
+
+![Demo](image.png)
+
+Parent koi suspicious message paste karta hai, aur app label, risk, ek line ka kaaran aur agle kadam batati hai. Ye AI ka andaza hai, galat bhi ho sakta hai.
+
+Chalane ke liye: `streamlit run app.py`
