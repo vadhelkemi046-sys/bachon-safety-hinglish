@@ -14,6 +14,7 @@ Model: gemini-3.1-flash-lite
 | test | 25 | 25 | 100% |
 | test_hard | 40 | 40 | 100% |
 | test_perturbed | 76 | 75 | 98.68% |
+| test_fresh (Claude-labelled) | 50 | 49 | 98.00% |
 
 - False-positive rate: 0.00%, Danger recall: 100% (test_perturbed par).
 - Ek galti: h030_p2 (grooming ko scam bola), typo wale SMS-style text par.
