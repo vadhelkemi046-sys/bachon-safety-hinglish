@@ -61,3 +61,5 @@ Model: gemini-3.1-flash-lite
 - `scripts/report.py`: saved predictions se accuracy, per-label table aur galat predictions dikhata hai
 - `scripts/perturb.py`: test rows ke typo wale variants banata hai
 - `scripts/validate.py`: data file ka format check karta hai
+
+- `prompt.py`: classifier ka prompt (labels, niyam, few-shot examples) yahin hai, aur `app.py` aur `scripts/baseline.py` dono isi se prompt lete hain. Prompt badalne par README ke numbers dobara nikalne padenge.
